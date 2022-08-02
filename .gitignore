@@ -1,7 +1,6 @@
-.vscode/
 .idea/
 *.iml
-privateInfo.h
+privateInfo.*
 networkVariables.h
 
 # Prerequisites
