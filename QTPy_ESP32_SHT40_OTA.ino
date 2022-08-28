@@ -11,38 +11,38 @@
  */
 #ifdef ESP8266
 // These headers are installed when the ESP8266 is installed in board manager.
-#include <ESP8266WiFi.h>			// ESP8266 WiFi support.  https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
-#include <ESP8266mDNS.h>			// OTA - mDNSResponder (Multicast DNS) for the ESP8266 family.
+#include <ESP8266WiFi.h> // ESP8266 WiFi support.  https://github.com/esp8266/Arduino/tree/master/libraries/ESP8266WiFi
+#include <ESP8266mDNS.h> // OTA - mDNSResponder (Multicast DNS) for the ESP8266 family.
 #elif ESP32
 // These headers are installed when the ESP32 is installed in board manager.
-#include <WiFi.h>						// ESP32 Wifi support.  https://github.com/espressif/arduino-esp32/blob/master/libraries/WiFi/src/WiFi.h
-#include <ESPmDNS.h>					// OTA - Multicast DNS for the ESP32.
+#include <WiFi.h>		// ESP32 Wifi support.  https://github.com/espressif/arduino-esp32/blob/master/libraries/WiFi/src/WiFi.h
+#include <ESPmDNS.h> // OTA - Multicast DNS for the ESP32.
 #else
-#include <WiFi.h>						// Arduino Wifi support.  This header is part of the standard library.  https://www.arduino.cc/en/Reference/WiFi
+#include <WiFi.h> // Arduino Wifi support.  This header is part of the standard library.  https://www.arduino.cc/en/Reference/WiFi
 #endif
-#include <Wire.h>						// This header is part of the standard library.  https://www.arduino.cc/en/reference/wire
-#include <PubSubClient.h>			// PubSub is the MQTT API.  Author: Nick O'Leary  https://github.com/knolleary/pubsubclient
-#include <ArduinoJson.h>			// The JSON parsing library used.  Author: Benoît Blanchon  https://arduinojson.org/
-#include <WiFiUdp.h>					// OTA
-#include <ArduinoOTA.h>				// OTA - The Arduino OTA library.  Specific version of this are installed along with specific boards in board manager.
-#include <Adafruit_SHT4x.h>		// Adafruit library for the SHT4x series, such as the SHT40.  https://github.com/adafruit/Adafruit_SHT4X, requires Adafruit_Sensor: https://github.com/adafruit/Adafruit_Sensor
-#include <Adafruit_NeoPixel.h>	// The Adafruit NeoPixel library to drive the RGB LED on the QT Py.	https://github.com/adafruit/Adafruit_NeoPixel
-#include "privateInfo.h"			// I use this file to hide my network information from random people browsing my GitHub repo.
+#include <Wire.h>					 // This header is part of the standard library.  https://www.arduino.cc/en/reference/wire
+#include <PubSubClient.h>		 // PubSub is the MQTT API.  Author: Nick O'Leary  https://github.com/knolleary/pubsubclient
+#include <ArduinoJson.h>		 // The JSON parsing library used.  Author: Benoît Blanchon  https://arduinojson.org/
+#include <WiFiUdp.h>				 // OTA
+#include <ArduinoOTA.h>			 // OTA - The Arduino OTA library.  Specific version of this are installed along with specific boards in board manager.
+#include <Adafruit_SHT4x.h>	 // Adafruit library for the SHT4x series, such as the SHT40.  https://github.com/adafruit/Adafruit_SHT4X, requires Adafruit_Sensor: https://github.com/adafruit/Adafruit_Sensor
+#include <Adafruit_NeoPixel.h> // The Adafruit NeoPixel library to drive the RGB LED on the QT Py.	https://github.com/adafruit/Adafruit_NeoPixel
+#include "privateInfo.h"		 // I use this file to hide my network information from random people browsing my GitHub repo.
 
 
 // NeoPixel related values.
-#define NUMPIXELS 1
-#define RED 0xFF0000
-#define ORANGE 0xFFA500
-#define YELLOW 0xFFFF00
-#define GREEN 0x00FF00
-#define BLUE 0x0000FF
-#define INDIGO 0x4B0082
-#define VIOLET 0xEE82EE
-#define PURPLE 0x800080
-#define BLACK 0x000000
-#define GRAY 0x808080
-#define WHITE 0xFFFFFF
+#define NUM_PIXELS 1
+#define RED			 0xFF0000
+#define ORANGE		 0xFFA500
+#define YELLOW		 0xFFFF00
+#define GREEN		 0x00FF00
+#define BLUE		 0x0000FF
+#define INDIGO		 0x4B0082
+#define VIOLET		 0xEE82EE
+#define PURPLE		 0x800080
+#define BLACK		 0x000000
+#define GRAY		 0x808080
+#define WHITE		 0xFFFFFF
 
 
 /*
@@ -55,20 +55,20 @@
 // const char * mqttBrokerArray[4] = { "Broker1", "Broker2", "Broker3", "192.168.0.2" };		// Typically declared in "privateInfo.h".
 // int const mqttPortArray[4] = { 1883, 1883, 1883, 2112 };												// Typically declared in "privateInfo.h".
 
-const char * notes = "office/QTPy/ Adafruit QT Py ESP32-S2 with SHT40 and OTA";
-const char * hostname = "office-qtpy-sht40";						// The network hostname for this device.  Used by OTA and general networking.
-const char * commandTopic = "office/QTPy/command";				// The topic used to subscribe to update commands.  Commands: publishTelemetry, changeTelemetryInterval, publishStatus.
-const char * sketchTopic = "office/QTPy/sketch";					// The topic used to publish the sketch name (__FILE__).
-const char * macTopic = "office/QTPy/mac";							// The topic used to publish the MAC address.
-const char * ipTopic = "office/QTPy/ip";							// The topic used to publish the IP address.
-const char * rssiTopic = "office/QTPy/rssi";						// The topic used to publish the WiFi Received Signal Strength Indicator.
-const char * publishCountTopic = "office/QTPy/publishCount"; // The topic used to publish the loop count.
-const char * notesTopic = "office/QTPy/notes";					// The topic used to publish notes relevant to this project.
-const char * tempCTopic = "office/QTPy/sht40/tempC";			// The topic used to publish the temperature in Celsius.
-const char * tempFTopic = "office/QTPy/sht40/tempF";			// The topic used to publish the temperature in Fahrenheit.
-const char * humidityTopic = "office/QTPy/sht40/humidity";	// The topic used to publish the humidity.
-const char * mqttStatsTopic = "espStats";							// The topic this device will publish to upon connection to the broker.
-const char * mqttTopic = "espWeather";								// The topic used to publish a single JSON message containing all data.
+const char *notes = "office/QTPy/ Adafruit QT Py ESP32-S2 with SHT40 and OTA";
+const char *hostname = "office-qtpy-sht40";						// The network hostname for this device.  Used by OTA and general networking.
+const char *commandTopic = "office/QTPy/command";				// The topic used to subscribe to update commands.  Commands: publishTelemetry, changeTelemetryInterval, publishStatus.
+const char *sketchTopic = "office/QTPy/sketch";					// The topic used to publish the sketch name (__FILE__).
+const char *macTopic = "office/QTPy/mac";							// The topic used to publish the MAC address.
+const char *ipTopic = "office/QTPy/ip";							// The topic used to publish the IP address.
+const char *rssiTopic = "office/QTPy/rssi";						// The topic used to publish the WiFi Received Signal Strength Indicator.
+const char *publishCountTopic = "office/QTPy/publishCount"; // The topic used to publish the loop count.
+const char *notesTopic = "office/QTPy/notes";					// The topic used to publish notes relevant to this project.
+const char *tempCTopic = "office/QTPy/sht40/tempC";			// The topic used to publish the temperature in Celsius.
+const char *tempFTopic = "office/QTPy/sht40/tempF";			// The topic used to publish the temperature in Fahrenheit.
+const char *humidityTopic = "office/QTPy/sht40/humidity";	// The topic used to publish the humidity.
+const char *mqttStatsTopic = "espStats";							// The topic this device will publish to upon connection to the broker.
+const char *mqttTopic = "espWeather";								// The topic used to publish a single JSON message containing all data.
 const int JSON_DOC_SIZE = 512;										// The ArduinoJson document size.
 const int LED_PIN = 2;													// The blue LED on the Freenove devkit.
 unsigned int consecutiveBadTemp = 0;								// Holds the current number of consecutive invalid temperature readings.
@@ -87,15 +87,15 @@ float humidity;															// A global to hold the relative humidity reading.
 long rssi;																	// A global to hold the Received Signal Strength Indicator.
 char macAddress[18];														// The MAC address of the WiFi NIC.
 char ipAddress[16];														// The IP address given to the device.
-char * activeWifiSsid;													// The WiFi SSID currently connected to.
-char * activeMqttBroker;													// The MQTT broker currently connected to.
+char *activeWifiSsid;													// The WiFi SSID currently connected to.
+char *activeMqttBroker;													// The MQTT broker currently connected to.
 unsigned int activeMqttPort;											// The MQTT port currently in use.
 
 
 // Create class objects.
 WiFiClient espClient;					  // Network client.
 PubSubClient mqttClient( espClient ); // MQTT client.
-Adafruit_NeoPixel pixels( NUMPIXELS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800 );
+Adafruit_NeoPixel pixels( NUM_PIXELS, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800 );
 Adafruit_SHT4x sht40 = Adafruit_SHT4x(); // SHT40 class object to read temperature and humidity from.
 sensors_event_t humidity_sensor;
 sensors_event_t temperature_sensor;
@@ -134,7 +134,7 @@ void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 	{
 		Serial.println( "Changing the publish interval." );
 		unsigned long tempValue = doc["value"];
-		// Only update the value if it is greater than 4 seconds.  This prevents a seconds vs. milliseconds mixup.
+		// Only update the value if it is greater than 4 seconds.  This prevents a seconds vs. milliseconds mix-up.
 		if( tempValue > 4000 )
 			publishInterval = tempValue;
 		Serial.printf( "MQTT publish interval has been updated to %lu", publishInterval );
@@ -253,22 +253,24 @@ void configureOTA()
 
 	Serial.printf( "Using hostname '%s'\n", hostname );
 
-	String type = "filesystem";	// SPIFFS
+	String type = "filesystem"; // SPIFFS
 	if( ArduinoOTA.getCommand() == U_FLASH )
 		type = "sketch";
 
 	// Configure the OTA callbacks.
 	ArduinoOTA.onStart( []()
-	{
+							  {
 		String type = "flash";	// U_FLASH
 		if( ArduinoOTA.getCommand() == U_SPIFFS )
 			type = "filesystem";
 		// NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-		Serial.printf( "OTA is updating the %s\n", type );
-	} );
-	ArduinoOTA.onEnd( []() { Serial.println( "\nTerminating OTA communication." ); } );
-	ArduinoOTA.onProgress( []( unsigned int progress, unsigned int total ){ Serial.printf( "OTA progress: %u%%\r", ( progress / ( total / 100 ) ) ); } );
-	ArduinoOTA.onError( []( ota_error_t error ){
+		Serial.printf( "OTA is updating the %s\n", type ); } );
+	ArduinoOTA.onEnd( []()
+							{ Serial.println( "\nTerminating OTA communication." ); } );
+	ArduinoOTA.onProgress( []( unsigned int progress, unsigned int total )
+								  { Serial.printf( "OTA progress: %u%%\r", ( progress / ( total / 100 ) ) ); } );
+	ArduinoOTA.onError( []( ota_error_t error )
+							  {
 		Serial.printf( "Error[%u]: ", error );
 		if( error == OTA_AUTH_ERROR ) Serial.println( "OTA authentication failed!" );
 		else if( error == OTA_BEGIN_ERROR ) Serial.println( "OTA transmission failed to initiate properly!" );
