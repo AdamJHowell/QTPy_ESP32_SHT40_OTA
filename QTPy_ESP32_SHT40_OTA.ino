@@ -103,24 +103,11 @@ sensors_event_t temperature_sensor;
 
 void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 {
-	char str[length + 1];
-	Serial.print( "Message arrived [" );
-	Serial.print( topic );
-	Serial.print( "] " );
-	int i = 0;
-	for( i = 0; i < length; i++ )
-	{
-		Serial.print( ( char )payload[i] );
-		str[i] = ( char )payload[i];
-	}
-	Serial.println();
-	// Add the null terminator.
-	str[i] = 0;
-	StaticJsonDocument<JSON_DOC_SIZE> doc;
-	deserializeJson( doc, str );
+	StaticJsonDocument<JSON_DOC_SIZE> callbackJsonDoc;
+	deserializeJson(callbackJsonDoc, payload, length);
 
 	// The command can be: publishTelemetry, changeTelemetryInterval, or publishStatus.
-	const char *command = doc["command"];
+	const char *command = callbackJsonDoc["command"];
 	if( strcmp( command, "publishTelemetry" ) == 0 )
 	{
 		Serial.println( "Reading and publishing sensor values." );
@@ -133,7 +120,7 @@ void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 	else if( strcmp( command, "changeTelemetryInterval" ) == 0 )
 	{
 		Serial.println( "Changing the publish interval." );
-		unsigned long tempValue = doc["value"];
+		unsigned long tempValue = callbackJsonDoc["value"];
 		// Only update the value if it is greater than 4 seconds.  This prevents a seconds vs. milliseconds mix-up.
 		if( tempValue > 4000 )
 			publishInterval = tempValue;
