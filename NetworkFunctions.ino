@@ -71,13 +71,13 @@ void configureOTA()
 	Serial.println( "Configuring OTA." );
 
 #ifdef ESP8266
-	// The ESP8266 hostname defaults to esp8266-[ChipID]
+	// The ESP8266 hostName defaults to esp8266-[ChipID]
 	// The ESP8266 port defaults to 8266
 	// ArduinoOTA.setPort( 8266 );
 	// Authentication is disabled by default.
 	// ArduinoOTA.setPassword( ( const char * )"admin" );
 #elif ESP32
-	// The ESP32 hostname defaults to esp32-[MAC]
+	// The ESP32 hostName defaults to esp32-[MAC]
 	// The ESP32 port defaults to 3232
 	// ArduinoOTA.setPort( 3232 );
 	// Authentication is disabled by default.
@@ -90,7 +90,7 @@ void configureOTA()
 #endif
 	ArduinoOTA.setHostname( hostName );
 
-	Serial.printf( "Using hostname '%s'\n", hostName );
+	Serial.printf( "Using hostName '%s'\n", hostName );
 
 	String type = "filesystem"; // SPIFFS
 	if( ArduinoOTA.getCommand() == U_FLASH )
@@ -148,9 +148,9 @@ void wifiMultiConnect()
 			// Attempt to connect to this WiFi network.
 			Serial.printf( "Wi-Fi mode set to WIFI_STA %s\n", WiFi.mode( WIFI_STA ) ? "" : "Failed!" );
 			if( WiFi.setHostname( hostName ) )
-				Serial.printf( "Network hostname set to '%s'\n", hostName );
+				Serial.printf( "Network hostName set to '%s'\n", hostName );
 			else
-				Serial.printf( "Failed to set the network hostname to '%s'\n", hostName );
+				Serial.printf( "Failed to set the network hostName to '%s'\n", hostName );
 			WiFi.begin( wifiSsid, wifiPassword );
 
 			unsigned long wifiConnectionStartTime = millis();
