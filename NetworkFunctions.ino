@@ -4,7 +4,7 @@
  * Ideally, this file could be used by an ESP32, ESP8266, or similar boards.
  * Because memory capacity varies wildly from device to device, buffer sizes are declared as variables in the entry-point file.
  */
-
+#include "NetworkFunctions.h"
 
 /*
  * onReceiveCallback() is a callback function to process MQTT subscriptions.
@@ -12,52 +12,45 @@
  */
 void onReceiveCallback( char *topic, byte *payload, unsigned int length )
 {
-	char str[length + 1];
-	Serial.print( "Message arrived [" );
-	Serial.print( topic );
-	Serial.print( "] " );
-	int i = 0;
-	for( i = 0; i < length; i++ )
+	if( length > 0 )
 	{
-		Serial.print( ( char )payload[i] );
-		str[i] = ( char )payload[i];
-	}
-	Serial.println();
-	// Add the null terminator.
-	str[i] = 0;
-	StaticJsonDocument<JSON_DOC_SIZE> callbackJsonDoc;
-	deserializeJson( callbackJsonDoc, str );
+		callbackCount++;
+		// Create a document named callbackJsonDoc to hold the callback payload.
+		StaticJsonDocument<JSON_DOC_SIZE> callbackJsonDoc;
+		// Deserialize payload into callbackJsonDoc.
+		deserializeJson( callbackJsonDoc, payload, length );
 
-	// The command can be: publishTelemetry, changeTelemetryInterval, or publishStatus.
-	const char *command = callbackJsonDoc["command"];
-	if( strcmp( command, "publishTelemetry" ) == 0 )
-	{
-		Serial.println( "Reading and publishing sensor values." );
-		// Poll the sensor.
-		readTelemetry();
-		// Publish the sensor readings.
-		publishTelemetry();
-		Serial.println( "Readings have been published." );
-	}
-	else if( strcmp( command, "changeTelemetryInterval" ) == 0 )
-	{
-		Serial.println( "Changing the publish interval." );
-		unsigned long tempValue = callbackJsonDoc["value"];
-		// Only update the value if it is greater than 4 seconds.  This prevents a seconds vs. milliseconds mix-up.
-		if( tempValue > 4000 )
-			publishInterval = tempValue;
-		Serial.print( "MQTT publish interval has been updated to " );
-		Serial.println( publishInterval );
-		lastPublishTime = 0;
-	}
-	else if( strcmp( command, "publishStatus" ) == 0 )
-	{
-		Serial.println( "publishStatus is not yet implemented." );
-	}
-	else
-	{
-		Serial.print( "Unknown command: " );
-		Serial.println( command );
+		// The command can be: publishTelemetry, changeTelemetryInterval, or publishStatus.
+		const char *command = callbackJsonDoc["command"];
+		if( strcmp( command, "publishTelemetry" ) == 0 )
+		{
+			Serial.println( "Reading and publishing sensor values." );
+			// Poll the sensor.
+			readTelemetry();
+			// Publish the sensor readings.
+			publishTelemetry();
+			Serial.println( "Readings have been published." );
+		}
+		else if( strcmp( command, "changeTelemetryInterval" ) == 0 )
+		{
+			Serial.println( "Changing the publish interval." );
+			unsigned long tempValue = callbackJsonDoc["value"];
+			// Only update the value if it is greater than 4 seconds.  This prevents a seconds vs. milliseconds mix-up.
+			if( tempValue > 4000 )
+				publishInterval = tempValue;
+			Serial.print( "MQTT publish interval has been updated to " );
+			Serial.println( publishInterval );
+			lastPublishTime = 0;
+		}
+		else if( strcmp( command, "publishStatus" ) == 0 )
+		{
+			Serial.println( "publishStatus is not yet implemented." );
+		}
+		else
+		{
+			Serial.print( "Unknown command: " );
+			Serial.println( command );
+		}
 	}
 } // End of onReceiveCallback() function.
 
@@ -124,99 +117,115 @@ void configureOTA()
 } // End of the configureOTA() function.
 
 
-/*
- * wifiMultiConnect() will iterate through 'wifiSsidArray[]', attempting to connect with the password stored at the same index in 'wifiPassArray[]'.
+/**
+ * @brief checkForSSID() will scan for all visible SSIDs, see if any match 'ssidName',
+ * and return a count of how many matches were found.
  *
- */
-void wifiMultiConnect()
-{
-	Serial.println( "\nEntering wifiMultiConnect()" );
-	for( size_t networkArrayIndex = 0; networkArrayIndex < sizeof( wifiSsidArray ); networkArrayIndex++ )
-	{
-		// Get the details for this connection attempt.
-		const char *wifiSsid = wifiSsidArray[networkArrayIndex];
-		const char *wifiPassword = wifiPassArray[networkArrayIndex];
-
-		// Announce the WiFi parameters for this connection attempt.
-		Serial.print( "Attempting to connect to SSID \"" );
-		Serial.print( wifiSsid );
-		Serial.println( "\"" );
-
-		// Don't even try to connect if the SSID cannot be found.
-		if( checkForSSID( wifiSsid ) )
-		{
-			// Attempt to connect to this WiFi network.
-			Serial.printf( "Wi-Fi mode set to WIFI_STA %s\n", WiFi.mode( WIFI_STA ) ? "" : "Failed!" );
-			if( WiFi.setHostname( hostName ) )
-				Serial.printf( "Network hostName set to '%s'\n", hostName );
-			else
-				Serial.printf( "Failed to set the network hostName to '%s'\n", hostName );
-			WiFi.begin( wifiSsid, wifiPassword );
-
-			unsigned long wifiConnectionStartTime = millis();
-			Serial.printf( "Waiting up to %lu seconds for a connection.\n", wifiConnectionTimeout / 1000 );
-			/*
-			WiFi.status() return values:
-			WL_IDLE_STATUS      = 0,
-			WL_NO_SSID_AVAIL    = 1,
-			WL_SCAN_COMPLETED   = 2,
-			WL_CONNECTED        = 3,
-			WL_CONNECT_FAILED   = 4,
-			WL_CONNECTION_LOST  = 5,
-			WL_WRONG_PASSWORD   = 6,
-			WL_DISCONNECTED     = 7
-			*/
-			while( WiFi.status() != WL_CONNECTED && ( millis() - wifiConnectionStartTime < wifiConnectionTimeout ) )
-			{
-				Serial.print( "." );
-				delay( 1000 );
-			}
-			Serial.println( "" );
-
-			if( WiFi.status() == WL_CONNECTED )
-			{
-				// Set the global 'networkIndex' to the index which successfully connected.
-				networkIndex = networkArrayIndex;
-				// Print that WiFi has connected.
-				Serial.println( "\nWiFi connection established!" );
-				snprintf( ipAddress, 16, "%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
-				Serial.printf( "IP address: %s", ipAddress );
-				return;
-			}
-			else
-				Serial.println( "Unable to connect to WiFi!" );
-		}
-		else
-			Serial.println( "That network was not found!" );
-	}
-	Serial.println( "Exiting wifiMultiConnect()\n" );
-} // End of wifiMultiConnect() function.
-
-
-/*
- * checkForSSID() is used by wifiMultiConnect() to avoid attempting to connect to SSIDs which are not in range.
- * Returns 1 if 'ssidName' can be found.
- * Returns 0 if 'ssidName' cannot be found.
+ * @param ssidName the SSID name to search for.
+ * @return int the count of SSIDs which match the passed parameter.
  */
 int checkForSSID( const char *ssidName )
 {
+	int ssidCount = 0;
 	byte networkCount = WiFi.scanNetworks();
 	if( networkCount == 0 )
 		Serial.println( "No WiFi SSIDs are in range!" );
 	else
 	{
-		Serial.printf( "%d networks found.\n", networkCount );
+		//      Serial.printf( "WiFi SSIDs in range: %d\n", networkCount );
 		for( int i = 0; i < networkCount; ++i )
 		{
 			// Check to see if this SSID matches the parameter.
 			if( strcmp( ssidName, WiFi.SSID( i ).c_str() ) == 0 )
-				return 1;
-			// Alternately, the String compareTo() function can be used like this: if( WiFi.SSID( i ).compareTo( ssidName ) == 0 )
+				ssidCount++;
 		}
 	}
-	Serial.printf( "SSID '%s' was not found!\n", ssidName );
-	return 0;
+	return ssidCount;
 } // End of checkForSSID() function.
+
+
+/**
+ * @brief wifiConnect() will attempt to connect to a single SSID.
+ */
+bool wifiConnect( const char *ssid, const char *password )
+{
+	wifiConnectCount++;
+	// Turn the LED off to show Wi-Fi is not connected.
+	digitalWrite( MCU_LED, LED_OFF );
+
+	Serial.printf( "Attempting to connect to Wi-Fi SSID '%s'", ssid );
+	WiFi.mode( WIFI_STA );
+	//   WiFi.setHostname( hostName );
+	WiFi.begin( ssid, password );
+
+	unsigned long wifiConnectionStartTime = millis();
+
+	// Loop until connected, or until wifiConnectionTimeout.
+	while( WiFi.status() != WL_CONNECTED && ( millis() - wifiConnectionStartTime < wifiConnectionTimeout ) )
+	{
+		Serial.print( "." );
+		delay( 1000 );
+	}
+	Serial.println( "" );
+
+	if( WiFi.status() == WL_CONNECTED )
+	{
+		// Print that Wi-Fi has connected.
+		Serial.println( "Wi-Fi connection established!" );
+		snprintf( ipAddress, 16, "%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
+		// Turn the LED on to show that Wi-Fi is connected.
+		digitalWrite( MCU_LED, LED_ON );
+		return true;
+	}
+	Serial.println( "Wi-Fi failed to connect in the timeout period.\n" );
+	return false;
+} // End of the wifiConnect() function.
+
+
+/**
+ * @brief wifiMultiConnect() will iterate through the SSIDs in 'wifiSsidList[]', and then use checkForSSID() determine which are in range.
+ * When a SSID is in range, wifiConnect() will be called with that SSID and password.
+ */
+void wifiMultiConnect()
+{
+	long time = millis();
+	if( lastWifiConnectTime == 0 || ( time > wifiCoolDownInterval && ( time - wifiCoolDownInterval ) > lastWifiConnectTime ) )
+	{
+		Serial.println( "\nEntering wifiMultiConnect()" );
+		digitalWrite( MCU_LED, LED_OFF ); // Turn the LED off to show that Wi-Fi is not yet connected.
+		for( size_t networkArrayIndex = 0; networkArrayIndex < sizeof( wifiSsidArray ); networkArrayIndex++ )
+		{
+			// Get the details for this connection attempt.
+			const char *wifiSsid = wifiSsidArray[networkArrayIndex];
+			const char *wifiPassword = wifiPassArray[networkArrayIndex];
+
+			// Announce the Wi-Fi parameters for this connection attempt.
+			Serial.print( "Attempting to connect to to SSID \"" );
+			Serial.print( wifiSsid );
+			Serial.println( "\"" );
+
+			// Don't even try to connect if the SSID cannot be found.
+			int ssidCount = checkForSSID( wifiSsid );
+			if( ssidCount > 0 )
+			{
+				// This is useful for detecting multiples APs.
+				if( ssidCount > 1 )
+					Serial.printf( "Found %d SSIDs matching '%s'.\n", ssidCount, wifiSsid );
+
+				// If the Wi-Fi connection is successful, set the mqttClient broker parameters.
+				if( wifiConnect( wifiSsid, wifiPassword ) )
+				{
+					mqttClient.setServer( mqttBrokerArray[networkArrayIndex], mqttPortArray[networkArrayIndex] );
+					return;
+				}
+			}
+			else
+				Serial.printf( "Network '%s' was not found!\n\n", wifiSsid );
+		}
+		Serial.println( "Exiting wifiMultiConnect()\n" );
+		lastWifiConnectTime = millis();
+	}
+} // End of wifiMultiConnect() function.
 
 
 /*
@@ -231,16 +240,6 @@ bool mqttMultiConnect( int maxAttempts )
 	Serial.println( "\nFunction mqttMultiConnect() has initiated." );
 	if( WiFi.status() != WL_CONNECTED )
 		wifiMultiConnect();
-
-	/*
-	 * The networkIndex variable is initialized to 2112.
-	 * If it is still 2112 at this point, then WiFi failed to connect.
-	 * This is only needed to display the name and port of the broker being used.
-	 */
-	if( networkIndex != 2112 )
-		Serial.printf( "Attempting to connect to the MQTT broker at '%s:%d' up to %d times.\n", mqttBrokerArray[networkIndex], mqttPortArray[networkIndex], maxAttempts );
-	else
-		Serial.printf( "Attempting to connect to the MQTT broker up to %d times.\n", maxAttempts );
 
 
 	int attemptNumber = 0;
