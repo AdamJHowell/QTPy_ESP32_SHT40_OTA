@@ -355,7 +355,6 @@ void setupSHT40()
 //				Serial.println( "Restarting the device!" );
 //				ESP.restart();
 //			}
-//			publishStats();
 //			// Subscribe to the command topic.
 //			if( mqttClient.subscribe( commandTopic ) )
 //				Serial.printf( "Successfully subscribed to topic '%s'.\n", commandTopic );
@@ -460,8 +459,9 @@ void readTelemetry()
  */
 void printTelemetry()
 {
+	Serial.printf( "publishCount: %lu\n", publishCount );
 	Serial.printf( "WiFi SSID: %s\n", wifiSsidArray[networkIndex] );
-	Serial.printf( "Broker: %s:%d\n",  mqttClient.getServerDomain(), mqttClient.getServerPort() );
+	Serial.printf( "Broker: %s:%d\n", mqttClient.getServerDomain(), mqttClient.getServerPort() );
 	Serial.printf( "Temperature: %.2f C\n", tempC );
 	Serial.printf( "Temperature: %.2f F\n", tempF );
 	Serial.printf( "Humidity: %.2f %%\n", humidity );
@@ -501,56 +501,33 @@ void printUptime()
  */
 void publishTelemetry()
 {
-	// Create a JSON Document on the stack.
-	StaticJsonDocument<JSON_DOC_SIZE> doc;
-	// Add data: __FILE__, macAddress, ipAddress, tempC, tempF, humidity, rssi, publishCount, notes
-	doc["sketch"] = __FILE__;
-	doc["mac"] = macAddress;
-	doc["ip"] = ipAddress;
-	doc["tempC"] = tempC;
-	doc["tempF"] = tempF;
-	doc["humidity"] = humidity;
-	doc["rssi"] = rssi;
-	doc["publishCount"] = publishCount;
-	doc["notes"] = notes;
+	Serial.println( "Successfully published to:" );
+	char buffer[20];
+	// New format: <location>/<device>/<sensor>/<metric>
+	if( mqttClient.publish( sketchTopic, __FILE__, false ) )
+		Serial.printf( "  %s\n", sketchTopic );
+	if( mqttClient.publish( macTopic, macAddress, false ) )
+		Serial.printf( "  %s\n", macTopic );
+	if( mqttClient.publish( ipTopic, ipAddress, false ) )
+		Serial.printf( "  %s\n", ipTopic );
+	ltoa( rssi, buffer, 10 );
+	if( mqttClient.publish( rssiTopic, buffer, false ) )
+		Serial.printf( "  %s\n", rssiTopic );
+	ltoa( publishCount, buffer, 10 );
+	if( mqttClient.publish( publishCountTopic, buffer, false ) )
+		Serial.printf( "  %s\n", publishCountTopic );
+	if( mqttClient.publish( notesTopic, notes, false ) )
+		Serial.printf( "  %s\n", notesTopic );
+	dtostrf( tempC, 1, 3, buffer );
+	if( mqttClient.publish( tempCTopic, buffer, false ) )
+		Serial.printf( "  %s\n", tempCTopic );
+	dtostrf( ( tempF ), 1, 3, buffer );
+	if( mqttClient.publish( tempFTopic, buffer, false ) )
+		Serial.printf( "  %s\n", tempFTopic );
+	dtostrf( ( humidity ), 1, 3, buffer );
+	if( mqttClient.publish( humidityTopic, buffer, false ) )
+		Serial.printf( "  %s\n", humidityTopic );
 
-	// Prepare a String to hold the JSON.
-	char mqttString[JSON_DOC_SIZE];
-	// Serialize the JSON into mqttString, with indentation and line breaks.
-	serializeJsonPretty( doc, mqttString );
-	// Publish the JSON to the MQTT broker.
-
-		Serial.println( "Successfully published to:" );
-		char buffer[20];
-		// New format: <location>/<device>/<sensor>/<metric>
-		if( mqttClient.publish( sketchTopic, __FILE__, false ) )
-			Serial.printf( "  %s\n", sketchTopic );
-		if( mqttClient.publish( macTopic, macAddress, false ) )
-			Serial.printf( "  %s\n", macTopic );
-		if( mqttClient.publish( ipTopic, ipAddress, false ) )
-			Serial.printf( "  %s\n", ipTopic );
-		ltoa( rssi, buffer, 10 );
-		if( mqttClient.publish( rssiTopic, buffer, false ) )
-			Serial.printf( "  %s\n", rssiTopic );
-		ltoa( publishCount, buffer, 10 );
-		if( mqttClient.publish( publishCountTopic, buffer, false ) )
-			Serial.printf( "  %s\n", publishCountTopic );
-		if( mqttClient.publish( notesTopic, notes, false ) )
-			Serial.printf( "  %s\n", notesTopic );
-		dtostrf( tempC, 1, 3, buffer );
-		if( mqttClient.publish( tempCTopic, buffer, false ) )
-			Serial.printf( "  %s\n", tempCTopic );
-		dtostrf( ( tempF ), 1, 3, buffer );
-		if( mqttClient.publish( tempFTopic, buffer, false ) )
-			Serial.printf( "  %s\n", tempFTopic );
-		dtostrf( ( humidity ), 1, 3, buffer );
-		if( mqttClient.publish( humidityTopic, buffer, false ) )
-			Serial.printf( "  %s\n", humidityTopic );
-
-		Serial.printf( "Successfully published to '%s', this JSON:\n", mqttTopic );
-
-	// Print the JSON to the Serial port.
-	Serial.println( mqttString );
 	lastPublishTime = millis();
 } // End of publishTelemetry() function.
 
@@ -560,20 +537,18 @@ void loop()
 	// Check the mqttClient connection state.
 	if( !mqttClient.connected() )
 		mqttMultiConnect( 10 );
-	// The loop() function facilitates the receiving of messages and maintains the connection to the broker.
-	mqttClient.loop();
 
 	ArduinoOTA.handle();
-	yield();
+
+	// The loop() function facilitates the receiving of messages and maintains the connection to the broker.
+	mqttClient.loop();
 
 	unsigned long time = millis();
 	if( lastPollTime == 0 || ( ( time > telemetryInterval ) && ( time - telemetryInterval ) > lastPollTime ) )
 	{
 		readTelemetry();
-		Serial.printf( "Temperature: %.2f C\n", tempC );
-		tempF = ( tempC * 9 / 5 ) + 32;
-		Serial.printf( "Temperature: %.2f F\n", tempF );
-		Serial.printf( "Humidity: %.2f %%\n", humidity );
+		printUptime();
+		printTelemetry();
 		lastPollTime = millis();
 		Serial.printf( "Next telemetry poll in %lu seconds\n\n", telemetryInterval / 1000 );
 	}
@@ -582,23 +557,7 @@ void loop()
 	if( ( time > publishInterval ) && ( time - publishInterval ) > lastPublishTime )
 	{
 		publishCount++;
-		Serial.println();
-		Serial.println( __FILE__ );
-
-		// Populate tempC and humidity objects with fresh data.
-		readTelemetry();
-
-		Serial.printf( "Temperature: %.2f C\n", tempC );
-		tempF = ( tempC * 9 / 5 ) + 32;
-		Serial.printf( "Temperature: %.2f F\n", tempF );
-		Serial.printf( "Humidity: %.2f %%\n", humidity );
-
-		printUptime();
-		printTelemetry();
 		publishTelemetry();
-
-		Serial.printf( "publishCount: %lu\n", publishCount );
-
 		lastPublishTime = millis();
 		Serial.printf( "Next MQTT publish in %lu seconds.\n\n", publishInterval / 1000 );
 	}

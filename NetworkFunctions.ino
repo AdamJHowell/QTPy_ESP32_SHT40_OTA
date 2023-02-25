@@ -68,18 +68,16 @@ void configureOTA()
 	// The ESP8266 port defaults to 8266
 	// ArduinoOTA.setPort( 8266 );
 	// Authentication is disabled by default.
-	// ArduinoOTA.setPassword( ( const char * )"admin" );
-#elif ESP32
+	 ArduinoOTA.setPassword( otaPass );
+#else
 	// The ESP32 hostName defaults to esp32-[MAC]
 	// The ESP32 port defaults to 3232
 	// ArduinoOTA.setPort( 3232 );
 	// Authentication is disabled by default.
-	// ArduinoOTA.setPassword( "admin" );
+	 ArduinoOTA.setPassword( otaPass );
 	// Password can be set with it's md5 value as well
 	// MD5( admin ) = 21232f297a57a5a743894a0e4a801fc3
 	// ArduinoOTA.setPasswordHash( "21232f297a57a5a743894a0e4a801fc3" );
-#else
-	// ToDo: Verify how stock Arduino code is meant to handle the port, username, and password.
 #endif
 	ArduinoOTA.setHostname( hostName );
 
@@ -150,8 +148,6 @@ int checkForSSID( const char *ssidName )
 bool wifiConnect( const char *ssid, const char *password )
 {
 	wifiConnectCount++;
-	// Turn the LED off to show Wi-Fi is not connected.
-	digitalWrite( MCU_LED, LED_OFF );
 
 	Serial.printf( "Attempting to connect to Wi-Fi SSID '%s'", ssid );
 	WiFi.mode( WIFI_STA );
@@ -173,8 +169,9 @@ bool wifiConnect( const char *ssid, const char *password )
 		// Print that Wi-Fi has connected.
 		Serial.println( "Wi-Fi connection established!" );
 		snprintf( ipAddress, 16, "%d.%d.%d.%d", WiFi.localIP()[0], WiFi.localIP()[1], WiFi.localIP()[2], WiFi.localIP()[3] );
-		// Turn the LED on to show that Wi-Fi is connected.
-		digitalWrite( MCU_LED, LED_ON );
+		// Set the LED color to green to show that all is well in Zion.
+		pixels.fill( GREEN );
+		pixels.show();
 		return true;
 	}
 	Serial.println( "Wi-Fi failed to connect in the timeout period.\n" );
@@ -192,7 +189,10 @@ void wifiMultiConnect()
 	if( lastWifiConnectTime == 0 || ( time > wifiCoolDownInterval && ( time - wifiCoolDownInterval ) > lastWifiConnectTime ) )
 	{
 		Serial.println( "\nEntering wifiMultiConnect()" );
-		digitalWrite( MCU_LED, LED_OFF ); // Turn the LED off to show that Wi-Fi is not yet connected.
+		// Set the LED color to yellow to show that Wi-Fi is connecting.
+		pixels.fill( YELLOW );
+		pixels.show();
+
 		for( size_t networkArrayIndex = 0; networkArrayIndex < sizeof( wifiSsidArray ); networkArrayIndex++ )
 		{
 			// Get the details for this connection attempt.
@@ -241,6 +241,7 @@ bool mqttMultiConnect( int maxAttempts )
 	if( WiFi.status() != WL_CONNECTED )
 		wifiMultiConnect();
 
+	mqttClient.setCallback( onReceiveCallback );
 
 	int attemptNumber = 0;
 	// Loop until MQTT has connected.
@@ -261,7 +262,6 @@ bool mqttMultiConnect( int maxAttempts )
 				Serial.println( "Restarting the device!" );
 				ESP.restart();
 			}
-			publishStats();
 			// Subscribe to the command topic.
 			if( mqttClient.subscribe( commandTopic ) )
 				Serial.printf( "Successfully subscribed to topic '%s'.\n", commandTopic );

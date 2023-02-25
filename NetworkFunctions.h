@@ -19,9 +19,20 @@
 #endif
 
 
-long rssi;				// A global to hold the Received Signal Strength Indicator.
-char macAddress[18]; // The MAC address of the WiFi NIC.
-char ipAddress[16];	// The IP address given to the device.
+long rssi;											 // A global to hold the Received Signal Strength Indicator.
+char macAddress[18];								 // The MAC address of the WiFi NIC.
+char ipAddress[16];								 // The IP address given to the device.
+unsigned int callbackCount = 0;				 // The number of times a callback has been processed.
+unsigned int wifiConnectCount = 0;			 // The number of times Wi-Fi has (re)connected.
+unsigned long lastWifiConnectTime = 0;		 // The most recent Wi-Fi connection time.
+unsigned int wifiCoolDownInterval = 20000; // The minimum time between Wi-Fi connection attempts.
+
+void onReceiveCallback( char *topic, byte *payload, unsigned int length );
+void configureOTA();
+int checkForSSID( const char *ssidName );
+bool wifiConnect( const char *ssid, const char *password );
+void wifiMultiConnect();
+bool mqttMultiConnect( int maxAttempts );
 
 
 WiFiClient espClient;					  // Network client.
